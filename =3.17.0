@@ -1,0 +1,61 @@
+Collecting addict
+  Using cached addict-2.4.0-py3-none-any.whl.metadata (1.0 kB)
+Collecting oss2
+  Using cached oss2-2.19.1.tar.gz (298 kB)
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting simplejson
+  Using cached simplejson-3.20.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.2 kB)
+Requirement already satisfied: requests!=2.9.0 in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from oss2) (2.32.4)
+Collecting crcmod>=1.7 (from oss2)
+  Using cached crcmod-1.7.tar.gz (89 kB)
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting pycryptodome>=3.4.7 (from oss2)
+  Using cached pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.4 kB)
+Collecting aliyun-python-sdk-kms>=2.4.1 (from oss2)
+  Using cached aliyun_python_sdk_kms-2.16.5-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting aliyun-python-sdk-core>=2.13.12 (from oss2)
+  Using cached aliyun-python-sdk-core-2.16.0.tar.gz (449 kB)
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: six in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from oss2) (1.17.0)
+Collecting jmespath<1.0.0,>=0.9.3 (from aliyun-python-sdk-core>=2.13.12->oss2)
+  Using cached jmespath-0.10.0-py2.py3-none-any.whl.metadata (8.0 kB)
+Collecting cryptography>=3.0.0 (from aliyun-python-sdk-core>=2.13.12->oss2)
+  Using cached cryptography-45.0.4-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting cffi>=1.14 (from cryptography>=3.0.0->aliyun-python-sdk-core>=2.13.12->oss2)
+  Using cached cffi-1.17.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.5 kB)
+Collecting pycparser (from cffi>=1.14->cryptography>=3.0.0->aliyun-python-sdk-core>=2.13.12->oss2)
+  Using cached pycparser-2.22-py3-none-any.whl.metadata (943 bytes)
+Requirement already satisfied: charset_normalizer<4,>=2 in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from requests!=2.9.0->oss2) (3.4.2)
+Requirement already satisfied: idna<4,>=2.5 in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from requests!=2.9.0->oss2) (3.10)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from requests!=2.9.0->oss2) (2.5.0)
+Requirement already satisfied: certifi>=2017.4.17 in /home/ZJ/.conda/envs/xr1/lib/python3.11/site-packages (from requests!=2.9.0->oss2) (2025.6.15)
+Downloading addict-2.4.0-py3-none-any.whl (3.8 kB)
+Downloading simplejson-3.20.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (144 kB)
+Downloading jmespath-0.10.0-py2.py3-none-any.whl (24 kB)
+Downloading aliyun_python_sdk_kms-2.16.5-py2.py3-none-any.whl (99 kB)
+Downloading cryptography-45.0.4-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 124.4 kB/s eta 0:00:00
+Using cached cffi-1.17.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (467 kB)
+Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.3/2.3 MB 144.0 kB/s eta 0:00:00
+Using cached pycparser-2.22-py3-none-any.whl (117 kB)
+Building wheels for collected packages: oss2, aliyun-python-sdk-core, crcmod
+  Building wheel for oss2 (setup.py): started
+  Building wheel for oss2 (setup.py): finished with status 'done'
+  Created wheel for oss2: filename=oss2-2.19.1-py3-none-any.whl size=124036 sha256=2f99bd8f3efee94ab0ce74620109a3f72ddfcf50f3f2588086bbccdd225be895
+  Stored in directory: /home/ZJ/.cache/pip/wheels/56/27/a3/50e7db0dd68810d9d4e383a547b88b4a5b1eaae58e63c1d64a
+  Building wheel for aliyun-python-sdk-core (setup.py): started
+  Building wheel for aliyun-python-sdk-core (setup.py): finished with status 'done'
+  Created wheel for aliyun-python-sdk-core: filename=aliyun_python_sdk_core-2.16.0-py3-none-any.whl size=535417 sha256=d1ee45f4470172022a29d2db086033730e5f886165aa04488d0f21bf39782a60
+  Stored in directory: /home/ZJ/.cache/pip/wheels/2b/9a/95/60f111d2a488c5f7f7ed2a96ce407ea57ec7393ddfdec8c956
+  Building wheel for crcmod (setup.py): started
+  Building wheel for crcmod (setup.py): finished with status 'done'
+  Created wheel for crcmod: filename=crcmod-1.7-cp311-cp311-linux_x86_64.whl size=23630 sha256=9044d625e19e50ed72f052438b57b062a28bd05a10521f9b16694f866431f2b9
+  Stored in directory: /home/ZJ/.cache/pip/wheels/23/94/7a/8cb7d14597e6395ce969933f01aed9ea8fa5f5b4d4c8a61e99
+Successfully built oss2 aliyun-python-sdk-core crcmod
+Installing collected packages: crcmod, addict, simplejson, pycryptodome, pycparser, jmespath, cffi, cryptography, aliyun-python-sdk-core, aliyun-python-sdk-kms, oss2
+
+Successfully installed addict-2.4.0 aliyun-python-sdk-core-2.16.0 aliyun-python-sdk-kms-2.16.5 cffi-1.17.1 crcmod-1.7 cryptography-45.0.4 jmespath-0.10.0 oss2-2.19.1 pycparser-2.22 pycryptodome-3.23.0 simplejson-3.20.1
