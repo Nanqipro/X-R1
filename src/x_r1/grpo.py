@@ -16,11 +16,12 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
+from typing import Optional, Union
 
 import datasets
 import torch
 import transformers
-from datasets import load_dataset
+from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict
 from transformers.trainer_utils import set_seed, get_last_checkpoint
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -213,14 +214,22 @@ def main(script_args, training_args, model_args):
 
     dataset = dataset.map(make_conversation)
     
-    # 安全地处理数据集列删除 - 支持不同类型的数据集
-    if hasattr(dataset, 'keys'):  # DatasetDict类型
-        for split_name in dataset.keys():
-            split_dataset = dataset[split_name]
-            if hasattr(split_dataset, 'column_names') and "messages" in split_dataset.column_names:
-                dataset[split_name] = split_dataset.remove_columns("messages")
-    elif hasattr(dataset, 'column_names') and "messages" in dataset.column_names:  # 单个Dataset类型
-        dataset = dataset.remove_columns("messages")
+    # 安全地处理数据集列删除 - 改进的类型检查
+    try:
+        if isinstance(dataset, (DatasetDict, IterableDatasetDict)):
+            # 处理DatasetDict类型
+            for split_name in list(dataset.keys()):
+                split_dataset = dataset[split_name]
+                if hasattr(split_dataset, 'column_names') and split_dataset.column_names is not None:
+                    if "messages" in split_dataset.column_names:
+                        dataset[split_name] = split_dataset.remove_columns("messages")
+        elif isinstance(dataset, (Dataset, IterableDataset)):
+            # 处理单个Dataset类型
+            if hasattr(dataset, 'column_names') and dataset.column_names is not None:
+                if "messages" in dataset.column_names:
+                    dataset = dataset.remove_columns("messages")
+    except Exception as e:
+        logger.warning(f"Unable to remove 'messages' column: {e}")
 
 
     logger.info("*** Initializing model kwargs ***")
@@ -249,13 +258,31 @@ def main(script_args, training_args, model_args):
     #############################
     # Initialize the XGRPO trainer
     #############################
+    
+    # 安全获取数据集分割
+    def get_dataset_split(dataset, split_name: str):
+        """安全地获取数据集分割"""
+        if isinstance(dataset, (DatasetDict, IterableDatasetDict)):
+            return dataset[split_name]
+        elif isinstance(dataset, (Dataset, IterableDataset)):
+            # 对于单个数据集，假设就是训练集
+            if split_name == script_args.dataset_train_split:
+                return dataset
+            else:
+                return None
+        else:
+            return None
+    
+    train_dataset = get_dataset_split(dataset, script_args.dataset_train_split)
+    eval_dataset = get_dataset_split(dataset, script_args.dataset_test_split) if training_args.eval_strategy != "no" else None
+    
     trainer = XGRPOTrainer(
         model=model_args.model_name_or_path,
         # model = model,
         reward_funcs=reward_funcs,
         args=training_args,
-        train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         peft_config=get_peft_config(model_args), # LoRA parameter
         callbacks=get_callbacks(training_args, model_args),
     )
@@ -273,7 +300,17 @@ def main(script_args, training_args, model_args):
         checkpoint = last_checkpoint
     train_result = trainer.train(resume_from_checkpoint=checkpoint)
     metrics = train_result.metrics
-    metrics["train_samples"] = len(dataset[script_args.dataset_train_split])
+    
+    # 安全计算训练样本数量
+    try:
+        if train_dataset is not None and hasattr(train_dataset, '__len__'):
+            train_samples = len(train_dataset)
+            metrics["train_samples"] = train_samples
+        else:
+            logger.warning("Unable to calculate train_samples length - dataset doesn't support __len__")
+    except (TypeError, AttributeError):
+        logger.warning("Unable to calculate train_samples length")
+        
     trainer.log_metrics("train", metrics)
     trainer.save_metrics("train", metrics)
     trainer.save_state()
@@ -293,8 +330,13 @@ def main(script_args, training_args, model_args):
     if trainer.accelerator.is_main_process:
         trainer.create_model_card(**kwargs)
         # Restore k,v cache for fast inference
-        trainer.model.config.use_cache = True
-        trainer.model.config.save_pretrained(training_args.output_dir)
+        try:
+            if hasattr(trainer, 'model') and trainer.model is not None:
+                if hasattr(trainer.model, 'config') and trainer.model.config is not None:
+                    trainer.model.config.use_cache = True
+                    trainer.model.config.save_pretrained(training_args.output_dir)
+        except Exception as e:
+            logger.warning(f"Unable to save model config: {e}")
 
     # if training_args.do_eval:
     #     logger.info("*** Evaluate ***")
@@ -305,6 +347,11 @@ def main(script_args, training_args, model_args):
 
 
 if __name__ == "__main__":
-    parser = TrlParser((GRPOScriptArguments, GRPOConfig, ModelConfig))
+    # 尝试不同的TrlParser参数格式
+    try:
+        parser = TrlParser((GRPOScriptArguments, GRPOConfig, ModelConfig))
+    except Exception:
+        # 如果元组格式不行，尝试列表格式
+        parser = TrlParser([GRPOScriptArguments, GRPOConfig, ModelConfig])
     script_args, training_args, model_args = parser.parse_args_and_config()
-    main(script_args, training_args, model_args )
+    main(script_args, training_args, model_args)
