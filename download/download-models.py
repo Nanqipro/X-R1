@@ -37,7 +37,7 @@ def main() -> None:
     主函数：执行模型下载流程
     """
     # 魔塔社区上的模型名称（对应Qwen2.5-3B-Instruct）
-    model_name = "xiaodongguaAIGC/X-R1-3B"
+    model_name = "Qwen/Qwen2.5-0.5B"
     # 备选模型：model_name = "AI-ModelScope/gpt-neo-1.3B"
     
     # 定义本地存储路径

@@ -3,20 +3,19 @@
 # running time ~1h
 
 # Model arguments
-model_name_or_path: Qwen/Qwen2.5-0.5B
+model_name_or_path: ./LLM-models-datasets/Qwen2.5-0.5B/Qwen/Qwen2.5-0.5B
 model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
 # Data training arguments
-dataset_name: xiaodongguaAIGC/X-R1-750 #  750 / 1500 / 7500
+dataset_name: ./LLM-models-datasets/X-R1-750 #  750 / 1500 / 7500
 dataset_configs:
 - train
 
 # GRPO trainer config
 bf16: true
 use_vllm: true
-vllm_device: auto
 vllm_gpu_memory_utilization: 0.7
 do_eval: no
 eval_strategy: "no"
@@ -40,8 +39,7 @@ overwrite_output_dir: true
 per_device_eval_batch_size: 1
 per_device_train_batch_size: 4
 push_to_hub: False
-report_to:
-- wandb
+report_to: []
 save_strategy: "epoch"
 seed: 42
 warmup_ratio: 0.1
