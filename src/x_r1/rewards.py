@@ -7,10 +7,10 @@ from openai import OpenAI
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
-# Initialize OpenAI client
+# Initialize DeepSeek client
 client = OpenAI(
-    api_key="",
-    base_url=""
+    api_key="sk-60e54dd882314d11b6dd43fe1bf55f11",
+    base_url="https://api.deepseek.com/v1"
 )
 
 def normalize_text(text):
@@ -31,10 +31,10 @@ def extract_answer(text):
     return text.strip()
 
 def evaluate_answer_similarity(answer, solution):
-    """Use GPT4O-mini to evaluate answer similarity."""
+    """Use DeepSeek API to evaluate answer similarity."""
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="deepseek-chat",
             messages=[
                 {
                     "role": "system",
@@ -47,10 +47,14 @@ def evaluate_answer_similarity(answer, solution):
             ],
             temperature=0
         )
-        result = response.choices[0].message.content.strip()
-        return float(result)
+        result = response.choices[0].message.content
+        if result:
+            result = result.strip()
+            return float(result)
+        else:
+            raise Exception("Empty response from API")
     except Exception as e:
-        print(f"Error in GPT evaluation: {e}")
+        print(f"Error in DeepSeek evaluation: {e}")
         # If API call fails, fall back to simple text matching
         return 1.0 if normalize_text(answer) == normalize_text(solution) else 0.0
 

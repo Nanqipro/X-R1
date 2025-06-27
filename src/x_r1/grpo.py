@@ -21,8 +21,7 @@ import datasets
 import torch
 import transformers
 from datasets import load_dataset
-from transformers import set_seed
-from transformers.trainer_utils import get_last_checkpoint
+from transformers.trainer_utils import set_seed, get_last_checkpoint
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
@@ -37,7 +36,7 @@ from rewards import (
 )
 from utils.callbacks import get_callbacks
 from x_grpo_trainer import XGRPOTrainer
-from trl import ModelConfig, ScriptArguments, TrlParser, get_peft_config
+from trl import ModelConfig, TrlParser, get_peft_config
 from peft import LoraConfig, PeftModel, get_peft_model
 
 
@@ -55,6 +54,32 @@ def init_wandb_training(training_args):
     if training_args.wandb_project is not None:
         os.environ["WANDB_PROJECT"] = training_args.wandb_project
 
+
+@dataclass
+class ScriptArguments:
+    """
+    基础脚本参数类，包含数据集相关配置
+    """
+    dataset_name: str = field(
+        default="FreedomIntelligence/medical-o1-verifiable-problem",
+        metadata={"help": "训练数据集名称"}
+    )
+    dataset_config: str = field(
+        default="default",
+        metadata={"help": "数据集配置名称"}
+    )
+    dataset_configs: list[str] = field(
+        default_factory=lambda: ["train"],
+        metadata={"help": "数据集配置列表"}
+    )
+    dataset_train_split: str = field(
+        default="train",
+        metadata={"help": "训练数据集分割"}
+    )
+    dataset_test_split: str = field(
+        default="test",
+        metadata={"help": "测试数据集分割"}
+    )
 
 
 @dataclass
@@ -94,7 +119,7 @@ class GRPOScriptArguments(ScriptArguments):
         default=-1.0,
         metadata={"help": "Maximum (negative) penalty for for repetition penalty reward"},
     )
-    num_iterations: int = field(
+    script_num_iterations: int = field(
         default=1,
         metadata={"help": "multi-step new/old policy ratio iteration"},
     )
@@ -187,9 +212,15 @@ def main(script_args, training_args, model_args):
         }
 
     dataset = dataset.map(make_conversation)
-    for split in dataset:
-        if "messages" in dataset[split].column_names:
-            dataset[split] = dataset[split].remove_columns("messages")
+    
+    # 安全地处理数据集列删除 - 支持不同类型的数据集
+    if hasattr(dataset, 'keys'):  # DatasetDict类型
+        for split_name in dataset.keys():
+            split_dataset = dataset[split_name]
+            if hasattr(split_dataset, 'column_names') and "messages" in split_dataset.column_names:
+                dataset[split_name] = split_dataset.remove_columns("messages")
+    elif hasattr(dataset, 'column_names') and "messages" in dataset.column_names:  # 单个Dataset类型
+        dataset = dataset.remove_columns("messages")
 
 
     logger.info("*** Initializing model kwargs ***")

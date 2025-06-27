@@ -312,6 +312,9 @@ class XGRPOTrainer(GRPOTrainer):
         # Initialize the metrics
         self._metrics = {"train": defaultdict(list), "eval": defaultdict(list)}
         self.log_completions = args.log_completions
+        
+        # 新版本TRL需要的属性
+        self.shuffle_dataset = getattr(args, 'shuffle_dataset', True)
 
         Trainer.__init__(self,
             model=model,
@@ -358,27 +361,25 @@ class XGRPOTrainer(GRPOTrainer):
                 )
 
             if self.accelerator.is_main_process:
-                vllm_device = self.args.vllm_device
-                if vllm_device == "auto":
-                    if torch.cuda.device_count() == 1:
-                        vllm_device = "cuda:0"  # particular case when training with onyl 1 GPU: share it
-                    else:
-                        vllm_device = f"cuda:{self.accelerator.num_processes}"  # take the next GPU idx
-                # Check that the requested device is available
+                # 新版本TRL移除了vllm_device参数，我们使用自动设备选择逻辑
+                if torch.cuda.device_count() == 1:
+                    vllm_device = "cuda:0"  # 单GPU情况：共享使用
+                else:
+                    vllm_device = f"cuda:{self.accelerator.num_processes}"  # 使用下一个GPU索引
+                
+                # 检查请求的设备是否可用
                 if vllm_device.split(":")[0] == "cuda" and int(vllm_device.split(":")[1]) >= torch.cuda.device_count():
-                    raise ValueError(
-                        f"The requested device for vllm ({vllm_device}) is not available. You are likely using vLLM "
-                        "without restricting the number of GPUs for training. Set the `--num_processes` argument to a "
-                        "value lower than the number of GPUs available on your machine—typically, reducing it by one "
-                        f"is sufficient. In your case: `--num_processes {torch.cuda.device_count() - 1}`."
+                    # 如果设备不可用，回退到cuda:0
+                    vllm_device = "cuda:0"
+                    warnings.warn(
+                        f"请求的vLLM设备不可用，回退到 {vllm_device}。建议使用 `--num_processes` 参数限制训练GPU数量。"
                     )
-                # Check that the requested device is not also used for training
+                
+                # 检查设备是否与训练设备冲突
                 if vllm_device in {f"cuda:{idx}" for idx in range(self.accelerator.num_processes)}:
                     warnings.warn(
-                        f"The requested device {vllm_device} is also being used for training. For higher throughput "
-                        "and to avoid out-of-memory errors, it is recommended to use a dedicated device for vLLM. "
-                        "If this is intentional, you may ignore this warning but should adjust "
-                        "`vllm_gpu_memory_utilization` accordingly."
+                        f"设备 {vllm_device} 同时用于训练。为提高吞吐量并避免内存不足，建议使用专用设备。"
+                        "如果这是故意的，请相应调整 `vllm_gpu_memory_utilization`。"
                     )
                 # vLLM is not compatible with accelerate. So we need to patch it to make sure we can (1) place the vLLM
                 # model on the desired device (world_size_patch) and (2) avoid a test that is not designed for our
@@ -388,17 +389,25 @@ class XGRPOTrainer(GRPOTrainer):
                     "vllm.worker.worker.Worker._assert_memory_footprint_increased_during_profiling", return_value=None
                 )
                 with world_size_patch, profiling_patch:
-                    self.llm = LLM(
-                        model=model.name_or_path,
-                        device=vllm_device,
-                        gpu_memory_utilization=self.args.vllm_gpu_memory_utilization,
-                        dtype=self.args.vllm_dtype,
+                    # 构建LLM参数，使用支持的参数并为移除的参数设置默认值
+                    llm_kwargs = {
+                        "model": model.name_or_path,
+                        "device": vllm_device,
+                        "gpu_memory_utilization": self.args.vllm_gpu_memory_utilization,
+                        # 新版本TRL移除了vllm_dtype，使用模型默认类型
+                        "dtype": "auto",  # 让vLLM自动选择合适的数据类型
                         # Automatic Prefix Caching caches the KV cache of existing queries, so that a new query can
                         # directly reuse the KV cache if it shares the same prefix with one of the existing queries.
                         # This is particularly useful here because we generate completions from the same prompts.
-                        enable_prefix_caching=True,
-                        max_model_len=self.args.vllm_max_model_len,
-                    )
+                        "enable_prefix_caching": True,
+                        # 新版本TRL移除了vllm_max_model_len，使用None让vLLM自动推断
+                    }
+                    
+                    # 只有在支持的情况下才添加tensor_parallel_size参数
+                    if hasattr(self.args, 'vllm_tensor_parallel_size'):
+                        llm_kwargs["tensor_parallel_size"] = self.args.vllm_tensor_parallel_size
+                    
+                    self.llm = LLM(**llm_kwargs)
                 self.sampling_params = SamplingParams(
                     temperature=args.temperature,
                     max_tokens=self.max_completion_length,

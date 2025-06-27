@@ -152,7 +152,7 @@ async def main() -> None:
     # 单个数据集同步下载示例
     logger.info("\n单个数据集下载示例:")
     success = downloader.download_dataset_sync(
-        dataset_name="AI-MO/NuminaMath-CoT",
+        dataset_name="xiaodongguaAIGC/X-R1-750",
         split="train"
     )
     
