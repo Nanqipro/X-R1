@@ -5,7 +5,8 @@
 # Model arguments
 model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
 model_revision: main
-torch_dtype: bfloat16
+# torch_dtype: bfloat16    # 4090
+torch_dtype: float16      # v100
 attn_implementation: flash_attention_2
 
 # Data training arguments
