@@ -361,26 +361,14 @@ class XGRPOTrainer(GRPOTrainer):
                 )
 
             if self.accelerator.is_main_process:
-                # 新版本TRL移除了vllm_device参数，我们使用自动设备选择逻辑
-                if torch.cuda.device_count() == 1:
-                    vllm_device = "cuda:0"  # 单GPU情况：共享使用
-                else:
-                    vllm_device = f"cuda:{self.accelerator.num_processes}"  # 使用下一个GPU索引
+                # 在分布式训练中，vLLM应该与主进程使用相同设备以避免设备不匹配问题
+                vllm_device = "cuda:0"  # 始终使用主设备，避免跨设备张量同步问题
                 
-                # 检查请求的设备是否可用
-                if vllm_device.split(":")[0] == "cuda" and int(vllm_device.split(":")[1]) >= torch.cuda.device_count():
-                    # 如果设备不可用，回退到cuda:0
-                    vllm_device = "cuda:0"
-                    warnings.warn(
-                        f"请求的vLLM设备不可用，回退到 {vllm_device}。建议使用 `--num_processes` 参数限制训练GPU数量。"
-                    )
-                
-                # 检查设备是否与训练设备冲突
-                if vllm_device in {f"cuda:{idx}" for idx in range(self.accelerator.num_processes)}:
-                    warnings.warn(
-                        f"设备 {vllm_device} 同时用于训练。为提高吞吐量并避免内存不足，建议使用专用设备。"
-                        "如果这是故意的，请相应调整 `vllm_gpu_memory_utilization`。"
-                    )
+                warnings.warn(
+                    f"vLLM将使用设备 {vllm_device} 与训练共享GPU资源。"
+                    f"当前GPU内存利用率设置为 {self.args.vllm_gpu_memory_utilization}。"
+                    "如果遇到内存不足，请降低此值。"
+                )
                 # vLLM is not compatible with accelerate. So we need to patch it to make sure we can (1) place the vLLM
                 # model on the desired device (world_size_patch) and (2) avoid a test that is not designed for our
                 # setting (profiling_patch).
@@ -389,13 +377,21 @@ class XGRPOTrainer(GRPOTrainer):
                     "vllm.worker.worker.Worker._assert_memory_footprint_increased_during_profiling", return_value=None
                 )
                 with world_size_patch, profiling_patch:
+                    # 根据训练配置确定vLLM数据类型
+                    if self.args.bf16:
+                        vllm_dtype = "bfloat16"
+                    elif self.args.fp16:
+                        vllm_dtype = "float16"
+                    else:
+                        vllm_dtype = "auto"  # 回退到自动选择
+                    
                     # 构建LLM参数，使用支持的参数并为移除的参数设置默认值
                     llm_kwargs = {
                         "model": model.name_or_path,
                         "device": vllm_device,
                         "gpu_memory_utilization": self.args.vllm_gpu_memory_utilization,
-                        # 新版本TRL移除了vllm_dtype，使用模型默认类型
-                        "dtype": "auto",  # 让vLLM自动选择合适的数据类型
+                        # 根据训练配置明确指定数据类型，而不是使用模型默认类型
+                        "dtype": vllm_dtype,
                         # Automatic Prefix Caching caches the KV cache of existing queries, so that a new query can
                         # directly reuse the KV cache if it shares the same prefix with one of the existing queries.
                         # This is particularly useful here because we generate completions from the same prompts.

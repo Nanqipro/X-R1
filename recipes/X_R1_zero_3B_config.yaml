@@ -15,7 +15,8 @@ dataset_configs:
 - train
 
 # GRPO trainer config
-bf16: true
+bf16: false
+fp16: true
 use_vllm: true
 vllm_gpu_memory_utilization: 0.3
 do_eval: false
