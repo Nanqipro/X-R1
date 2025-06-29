@@ -1,0 +1,107 @@
+# ====================================
+# X-R1 3B模型 PEFT/LoRA 训练配置文件
+# ====================================
+#
+# 配置说明:
+#   这是X-R1项目中3B模型使用PEFT/LoRA技术的训练配置文件。
+#   PEFT (Parameter Efficient Fine-Tuning) 通过LoRA适配器显著降低训练成本和显存需求。
+#
+# 硬件要求:
+#   - GPU: 2×RTX 3090 (24GB) 或 2×RTX 4090 (24GB) 
+#   - 显存: 约32-40GB (相比全量微调节省50%以上)
+#   - 训练时间: 约1-1.5小时
+#   - 成本: 相比全量微调节省60%以上
+#
+# PEFT/LoRA技术优势:
+#   - 参数效率: 仅训练模型参数的1-2%
+#   - 显存友好: 大幅减少显存占用
+#   - 训练速度: 更快的训练收敛
+#   - 部署灵活: 可以轻松切换和合并适配器
+#
+# LoRA配置参数说明:
+#   - lora_r (rank): LoRA矩阵的秩，控制适配器容量 (3B模型建议64)
+#   - lora_alpha: 缩放因子，影响LoRA权重强度 (通常设为rank的2倍)
+#   - target_modules: 应用LoRA的目标模块 (关键线性层)
+#   - dropout: 防止过拟合的dropout率
+#
+# 训练特点:
+#   - 基础模型: Qwen2.5-3B + LoRA适配器
+#   - 数据集: MMLU训练集
+#   - 训练方法: GRPO + PEFT优化
+#   - 适合: 中等规模训练任务、平衡性能与成本
+#
+# 适用场景:
+#   - 生产环境中等规模部署
+#   - 需要较好性能但资源有限
+#   - 多任务适配器开发
+#   - 快速迭代和实验
+#
+# 使用方法:
+#   accelerate launch --config_file recipes/zero3.yaml --num_processes=2 \
+#   src/x_r1/grpo.py --config recipes/X_R1_zero_3B_lora_config.yaml
+#
+# ====================================
+
+# This is X-R1(https://github.com/dhcode-cpp/X-R1) project training config:
+# required >= 2×RTX3090(24G)/4090(24G) with LoRA
+# running time ~1-1.5h
+
+# Model arguments
+model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Data training arguments
+dataset_name: ./LLM-models-datasets/X-R1-750
+dataset_configs:
+- train
+
+# GRPO trainer config
+bf16: true
+use_vllm: true   # 启用vLLM加速推理采样
+vllm_gpu_memory_utilization: 0.3
+do_eval: false
+eval_strategy: "no"
+eval_steps: 10
+gradient_accumulation_steps: 16  # 保持与原3B配置一致
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+learning_rate: 5.0e-05  # LoRA通常需要稍高的学习率
+log_level: info
+logging_steps: 1
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_prompt_length: 256
+num_generations: 2  # 保持与原3B配置一致
+max_completion_length: 512
+max_steps: -1
+num_train_epochs: 3
+output_dir: output/X-R1-3B-LoRA
+overwrite_output_dir: true
+per_device_eval_batch_size: 1
+per_device_train_batch_size: 2  # 保持与原3B配置一致
+push_to_hub: False
+report_to: []  # 禁用wandb记录，避免API key问题
+save_strategy: "epoch"
+seed: 42
+warmup_ratio: 0.1
+
+# ====================================
+# LoRA 配置参数
+# ====================================
+# PEFT/LoRA 训练配置 - 针对3B模型优化
+lora_r: 64  # 3B模型使用更高的rank以保持性能
+lora_target_modules: 
+  - "q_proj"      # Query投影层
+  - "k_proj"      # Key投影层  
+  - "v_proj"      # Value投影层
+  - "o_proj"      # Output投影层
+  - "gate_proj"   # 门控投影层
+  - "up_proj"     # 上投影层
+  - "down_proj"   # 下投影层
+  - "embed_tokens"  # 嵌入层
+lora_alpha: 128     # alpha = rank * 2，适合3B模型
+lora_dropout: 0.05  # 轻微dropout防止过拟合
+use_peft: true      # 启用PEFT/LoRA训练 
