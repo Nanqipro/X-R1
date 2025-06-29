@@ -16,11 +16,11 @@ dataset_configs:
 # GRPO trainer config
 bf16: true
 use_vllm: true
-vllm_gpu_memory_utilization: 0.2  # 降低VLLM内存使用
+vllm_gpu_memory_utilization: 0.3
 do_eval: false
 eval_strategy: "no"
 eval_steps: 10
-gradient_accumulation_steps: 32  # 增加梯度累积步数以补偿更小的batch size
+gradient_accumulation_steps: 16
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
@@ -29,15 +29,15 @@ log_level: info
 logging_steps: 1
 logging_strategy: steps
 lr_scheduler_type: cosine
-max_prompt_length: 200  # 减少prompt长度
-num_generations: 2  # GRPO要求至少2个生成
-max_completion_length: 384  # 减少完成长度
+max_prompt_length: 256
+num_generations: 2
+max_completion_length: 512
 max_steps: -1
 num_train_epochs: 3
 output_dir: output/X-R1-3B
 overwrite_output_dir: true
 per_device_eval_batch_size: 1
-per_device_train_batch_size: 1  # 减少batch size
+per_device_train_batch_size: 2
 push_to_hub: False
 report_to: []
 save_strategy: "epoch"

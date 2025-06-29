@@ -7,17 +7,13 @@ deepspeed_config:
   zero3_init_flag: true
   zero3_save_16bit_model: true
   zero_stage: 3
-  stage3_max_live_parameters: 1e9  # 限制活跃参数数量
-  stage3_max_reuse_distance: 1e9   # 增加参数重用距离
-  stage3_prefetch_bucket_size: 5e7  # 减少预取bucket大小
-  stage3_param_persistence_threshold: 1e6  # 参数持久化阈值
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 machine_rank: 0
 main_training_function: main
 mixed_precision: bf16
 num_machines: 1
-num_processes: 2
+num_processes: 3
 rdzv_backend: static
 same_network: true
 tpu_env: []
