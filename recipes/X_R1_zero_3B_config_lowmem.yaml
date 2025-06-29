@@ -1,6 +1,6 @@
 # This is X-R1(https://github.com/dhcode-cpp/X-R1) project training config:
-# required >=  4x3090(24G)/4090(24G)
-# running time 2~3h
+# Low memory version for GPUs with limited VRAM
+# required >=  3x3090(24G)/4090(24G) with very conservative settings
 
 # Model arguments
 model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
@@ -13,14 +13,14 @@ dataset_name: ./LLM-models-datasets/X-R1-750
 dataset_configs:
 - train
 
-# GRPO trainer config
+# GRPO trainer config - Ultra low memory settings
 bf16: true
 use_vllm: true
-vllm_gpu_memory_utilization: 0.2  # 降低VLLM内存使用
+vllm_gpu_memory_utilization: 0.15  # 进一步降低VLLM内存使用
 do_eval: false
 eval_strategy: "no"
 eval_steps: 10
-gradient_accumulation_steps: 32  # 增加梯度累积步数以补偿更小的batch size
+gradient_accumulation_steps: 64  # 大幅增加梯度累积以补偿micro batch
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
@@ -29,17 +29,17 @@ log_level: info
 logging_steps: 1
 logging_strategy: steps
 lr_scheduler_type: cosine
-max_prompt_length: 200  # 减少prompt长度
-num_generations: 2  # GRPO要求至少2个生成
-max_completion_length: 384  # 减少完成长度
+max_prompt_length: 128  # 大幅减少prompt长度
+num_generations: 2  # GRPO算法要求
+max_completion_length: 256  # 大幅减少完成长度
 max_steps: -1
 num_train_epochs: 3
-output_dir: output/X-R1-3B
+output_dir: output/X-R1-3B-lowmem
 overwrite_output_dir: true
 per_device_eval_batch_size: 1
-per_device_train_batch_size: 1  # 减少batch size
+per_device_train_batch_size: 1  # 保持最小batch size
 push_to_hub: False
 report_to: []
 save_strategy: "epoch"
 seed: 42
-warmup_ratio: 0.1
+warmup_ratio: 0.1 
