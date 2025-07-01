@@ -182,6 +182,12 @@ def main(script_args, training_args, model_args):
             "Open-ended Verifiable Question": "problem",
             "Ground-True Answer": "solution"
         })
+    elif "mmlu" in script_args.dataset_name.lower():
+        # MMLU数据集的字段映射
+        dataset = dataset.rename_columns({
+            "question": "problem",
+            "answer": "solution"
+        })
 
     # Get reward functions
     REWARD_FUNCS_REGISTRY = {

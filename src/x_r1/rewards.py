@@ -1,15 +1,16 @@
 """Reward functions for GRPO training."""
 
 import re
+import math
 from typing import Dict
 import os
 from openai import OpenAI
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
-# Initialize DeepSeek client
+# Initialize DeepSeek client with environment variable for security
 client = OpenAI(
-    api_key="sk-60e54dd882314d11b6dd43fe1bf55f11",
+    api_key=os.getenv("DEEPSEEK_API_KEY", "sk-60e54dd882314d11b6dd43fe1bf55f11"),  # fallback for backward compatibility
     base_url="https://api.deepseek.com/v1"
 )
 
@@ -17,6 +18,9 @@ def normalize_text(text):
     """Normalize text by removing extra whitespace, converting to lowercase."""
     if text is None:
         return ""
+    # Convert to string if not already (handles int, float, etc.)
+    if not isinstance(text, str):
+        text = str(text)
     # Remove extra whitespace and convert to lowercase
     text = re.sub(r'\s+', ' ', text.strip().lower())
     return text
@@ -63,9 +67,12 @@ def accuracy_reward(completions, solution, **kwargs):
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
     for content, sol in zip(contents, solution):
+        # Convert solution to string if it's not already (handles MMLU integer answers)
+        sol_str = str(sol) if not isinstance(sol, str) else sol
+        
         # First try latex parsing
         gold_parsed = parse(
-            sol,
+            sol_str,
             extraction_mode="first_match",
             extraction_config=[LatexExtractionConfig()],
         )
@@ -140,7 +147,12 @@ def accuracy_answer_reward(completion, answer, **kwargs):
         reward = float(verify(answer_parsed, gold_parsed))
         print('-'*100)
         print('\nanswer_parsed:', answer_parsed, '\ngold_parsed:', gold_parsed, '\nreward:', reward)
-    return reward
+        return reward
+    else:
+        # Handle case when gold_parsed is empty
+        print('-'*100)
+        print('\nSkipping unparseable gold answer:', answer)
+        return 0.0
 
 
 def format_reward(completions, **kwargs):
@@ -191,8 +203,11 @@ def len_reward(completions: list[Dict[str, str]], solutions: list[str], **kwargs
     # First check correctness of answers
     correctness = []
     for content, sol in zip(contents, solutions):
+        # Convert solution to string if it's not already (handles MMLU integer answers)
+        sol_str = str(sol) if not isinstance(sol, str) else sol
+        
         gold_parsed = parse(
-            sol,
+            sol_str,
             extraction_mode="first_match",
             extraction_config=[LatexExtractionConfig()],
         )

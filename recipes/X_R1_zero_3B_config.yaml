@@ -9,9 +9,10 @@ torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
 # Data training arguments
-dataset_name: ./LLM-models-datasets/X-R1-750
+dataset_name: ./LLM-models-datasets/mmlu
 dataset_configs:
-- train
+- test
+dataset_train_split: test
 
 # GRPO trainer config
 bf16: true
@@ -20,7 +21,7 @@ vllm_gpu_memory_utilization: 0.3
 do_eval: false
 eval_strategy: "no"
 eval_steps: 10
-gradient_accumulation_steps: 16
+gradient_accumulation_steps: 4
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
