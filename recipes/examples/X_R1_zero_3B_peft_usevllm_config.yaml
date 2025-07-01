@@ -26,7 +26,7 @@ dataset_train_split: test
 # GRPO trainer config
 bf16: true
 use_vllm: true
-vllm_gpu_memory_utilization: 0.5
+vllm_gpu_memory_utilization: 0.3
 do_eval: no
 eval_strategy: "no"
 eval_steps: 10
@@ -41,7 +41,7 @@ logging_steps: 5
 logging_strategy: steps
 lr_scheduler_type: cosine
 max_prompt_length: 256
-num_generations: 4
+num_generations: 3
 max_completion_length: 256
 max_steps: -1
 num_train_epochs: 3
