@@ -29,7 +29,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from configs import GRPOConfig
 from rewards import (
     accuracy_reward,
+    accuracy_reward_continuous,
     format_reward,
+    format_reward_continuous,
     get_cosine_scaled_reward,
     get_repetition_penalty_reward,
     len_reward,
@@ -88,7 +90,7 @@ class GRPOScriptArguments(ScriptArguments):
     reward_funcs: list[str] = field(
         default_factory=lambda: ["accuracy", "format"],
         metadata={
-            "help": "List of reward functions. Possible values: 'accuracy', 'format', 'reasoning_steps', 'cosine', 'repetition_penalty', 'length'"
+            "help": "List of reward functions. Possible values: 'accuracy', 'accuracy_continuous', 'format', 'format_continuous', 'reasoning_steps', 'cosine', 'repetition_penalty', 'length'"
         },
     )
     cosine_min_value_wrong: float = field(
@@ -192,7 +194,9 @@ def main(script_args, training_args, model_args):
     # Get reward functions
     REWARD_FUNCS_REGISTRY = {
         "accuracy": accuracy_reward,
+        "accuracy_continuous": accuracy_reward_continuous,
         "format": format_reward,
+        "format_continuous": format_reward_continuous,
         "reasoning_steps": reasoning_steps_reward,
         "cosine": get_cosine_scaled_reward(
             min_value_wrong=script_args.cosine_min_value_wrong,

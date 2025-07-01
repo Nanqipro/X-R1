@@ -118,6 +118,113 @@ def accuracy_reward(completions, solution, **kwargs):
     return rewards
 
 
+def accuracy_reward_continuous(completions, solution, **kwargs):
+    """改进的奖励函数，提供连续的奖励值而不是简单的0/1."""
+    contents = [completion[0]["content"] for completion in completions]
+    rewards = []
+    
+    for content, sol in zip(contents, solution):
+        # Convert solution to string if it's not already (handles MMLU integer answers)
+        sol_str = str(sol) if not isinstance(sol, str) else sol
+        
+        # First try latex parsing
+        gold_parsed = parse(
+            sol_str,
+            extraction_mode="first_match",
+            extraction_config=[LatexExtractionConfig()],
+        )
+        
+        if len(gold_parsed) != 0:
+            # We require the answer to be provided in correct latex (no malformed operators)
+            answer_parsed = parse(
+                content,
+                extraction_config=[
+                    LatexExtractionConfig(
+                        normalization_config=NormalizationConfig(
+                            nits=False,
+                            malformed_operators=False,
+                            basic_latex=True,
+                            equations=True,
+                            boxed="all",
+                            units=True,
+                        ),
+                        # Ensures that boxed is tried first
+                        boxed_match_priority=0,
+                        try_extract_without_anchor=False,
+                    )
+                ],
+                extraction_mode="first_match",
+            )
+            
+            # 基础奖励：完全匹配得1.0，否则看部分匹配程度
+            base_reward = float(verify(answer_parsed, gold_parsed))
+            
+            if base_reward == 0.0:
+                # 如果不完全匹配，计算相似度奖励
+                # 1. 检查是否包含正确答案的部分内容
+                gold_str = str(gold_parsed).lower() if gold_parsed else ""
+                answer_str = str(answer_parsed).lower() if answer_parsed else ""
+                content_lower = content.lower()
+                
+                # 2. 部分匹配奖励
+                if gold_str and gold_str in content_lower:
+                    base_reward = 0.3  # 包含正确答案得30%奖励
+                elif answer_str and len(answer_str) > 0:
+                    # 3. 基于字符串相似度的奖励
+                    common_chars = len(set(gold_str) & set(answer_str))
+                    total_chars = len(set(gold_str) | set(answer_str))
+                    if total_chars > 0:
+                        similarity = common_chars / total_chars
+                        base_reward = min(0.2, similarity * 0.2)  # 最多20%的相似度奖励
+            
+            # 4. 长度惩罚：过长的答案会降低奖励
+            length_penalty = min(1.0, 500 / max(len(content), 100))  # 超过500字符开始惩罚
+            final_reward = base_reward * length_penalty
+            
+            print('-'*100)
+            print(f'\nanswer_parsed: {answer_parsed}')
+            print(f'gold_parsed: {gold_parsed}')
+            print(f'base_reward: {base_reward:.3f}, length_penalty: {length_penalty:.3f}, final_reward: {final_reward:.3f}')
+            
+            reward = final_reward
+        else:
+            # For medical text answers, extract from <answer> tags and use GPT4O-mini for evaluation
+            answer_content = extract_answer(content)
+            normalized_content = normalize_text(answer_content)
+            normalized_solution = normalize_text(sol)
+            
+            # 使用API评估，但添加连续性
+            base_reward = evaluate_answer_similarity(normalized_content, normalized_solution)
+            
+            # 添加部分匹配奖励
+            if base_reward == 0.0 and normalized_solution:
+                # 简单的包含关系检查
+                solution_words = set(normalized_solution.split())
+                answer_words = set(normalized_content.split())
+                
+                if solution_words and answer_words:
+                    # 计算词汇重叠度
+                    overlap = len(solution_words & answer_words)
+                    total_words = len(solution_words)
+                    if total_words > 0:
+                        word_overlap_ratio = overlap / total_words
+                        base_reward = min(0.3, word_overlap_ratio * 0.3)  # 最多30%的词汇重叠奖励
+            
+            # 长度惩罚
+            length_penalty = min(1.0, 300 / max(len(content), 50))
+            reward = base_reward * length_penalty
+            
+            print('-'*100)
+            print(f'\nanswer_parsed: {normalized_content}')
+            print(f'gold_parsed: {normalized_solution}')
+            print(f'base_reward: {base_reward:.3f}, length_penalty: {length_penalty:.3f}, final_reward: {reward:.3f}')
+        
+        rewards.append(reward)
+
+    print(f'\naccuracy rewards (continuous): {[f"{r:.3f}" for r in rewards]}')
+    return rewards
+
+
 def accuracy_answer_reward(completion, answer, **kwargs):
     """Reward function that checks if the completion is the same as the ground truth."""
     '''
@@ -164,6 +271,60 @@ def format_reward(completions, **kwargs):
     rewards = [1.0 if match else 0.0 for match in matches]
     print('-'*100)
     print('\nformat rewards:', rewards)
+    return rewards
+
+
+def format_reward_continuous(completions, **kwargs):
+    """连续版本的格式奖励函数，提供更细粒度的奖励."""
+    completion_contents = [completion[0]["content"] for completion in completions]
+    rewards = []
+    
+    for content in completion_contents:
+        reward = 0.0
+        
+        # 检查完整格式
+        full_pattern = r"^<think>.*?</think><answer>.*?</answer>$"
+        if re.match(full_pattern, content, re.DOTALL):
+            reward = 1.0  # 完整格式得满分
+        else:
+            # 部分格式奖励
+            has_think_start = bool(re.search(r"<think>", content))
+            has_think_end = bool(re.search(r"</think>", content))
+            has_answer_start = bool(re.search(r"<answer>", content))
+            has_answer_end = bool(re.search(r"</answer>", content))
+            
+            # 根据包含的标签给予部分奖励
+            partial_score = 0.0
+            if has_think_start:
+                partial_score += 0.2
+            if has_think_end:
+                partial_score += 0.2
+            if has_answer_start:
+                partial_score += 0.3
+            if has_answer_end:
+                partial_score += 0.3
+                
+            # 检查标签是否配对
+            think_pairs = len(re.findall(r"<think>.*?</think>", content, re.DOTALL))
+            answer_pairs = len(re.findall(r"<answer>.*?</answer>", content, re.DOTALL))
+            
+            if think_pairs > 0:
+                partial_score += 0.1  # 有配对的think标签额外加分
+            if answer_pairs > 0:
+                partial_score += 0.1  # 有配对的answer标签额外加分
+                
+            # 检查标签顺序（think应该在answer之前）
+            think_pos = content.find("<think>")
+            answer_pos = content.find("<answer>")
+            if think_pos != -1 and answer_pos != -1 and think_pos < answer_pos:
+                partial_score += 0.1  # 正确顺序额外加分
+                
+            reward = min(0.9, partial_score)  # 部分匹配最多给90%奖励
+        
+        rewards.append(reward)
+    
+    print('-'*100)
+    print(f'\nformat rewards (continuous): {[f"{r:.3f}" for r in rewards]}')
     return rewards
 
 
