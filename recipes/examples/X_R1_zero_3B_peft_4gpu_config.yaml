@@ -1,0 +1,62 @@
+# X-R1 3B LoRA 4GPU配置
+# 充分利用4个RTX 4090
+# required = 4x4090(24G)
+# running time 30~45min (fastest)
+
+# 4GPU运行命令:
+# export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# ACCELERATE_LOG_LEVEL=info accelerate launch \
+# --config_file recipes/zero3.yaml \
+# --num_processes=4 src/x_r1/grpo.py \
+# --config recipes/examples/X_R1_zero_3B_peft_4gpu_config.yaml \
+# > ./output/x_r1_3b_4gpu.log 2>&1
+
+# Model arguments
+model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Data training arguments
+dataset_name: ./LLM-models-datasets/X-R1-750
+dataset_configs:
+- train
+
+# GRPO trainer config - 4GPU优化
+bf16: true
+use_vllm: false
+do_eval: no
+eval_strategy: "no"
+eval_steps: 10
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+hub_strategy: every_save
+learning_rate: 4.0e-06
+log_level: info
+logging_steps: 3
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_prompt_length: 200
+num_generations: 4
+max_completion_length: 200
+max_steps: -1
+num_train_epochs: 2
+output_dir: output/X-R1-3B-LoRA-4GPU
+overwrite_output_dir: true
+per_device_eval_batch_size: 1
+per_device_train_batch_size: 1
+push_to_hub: False
+report_to: []
+save_strategy: "epoch"
+seed: 42
+warmup_ratio: 0.1
+dataloader_num_workers: 2
+
+# lora config - 4GPU平衡配置
+lora_r: 12
+lora_target_modules: ["q_proj","v_proj"]
+lora_alpha: 12
+lora_dropout: 0.05
+use_peft: true 

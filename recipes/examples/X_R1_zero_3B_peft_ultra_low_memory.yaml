@@ -1,0 +1,62 @@
+# X-R1 3B LoRA 极致内存优化配置
+# Ultra low memory requirements - 1 process only
+# required >= 1x4090(24G) 
+# running time 4~5h (slower due to single GPU)
+
+# 单GPU运行命令:
+# export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# ACCELERATE_LOG_LEVEL=info accelerate launch \
+# --config_file recipes/zero3.yaml \
+# --num_processes=1 src/x_r1/grpo.py \
+# --config recipes/examples/X_R1_zero_3B_peft_ultra_low_memory.yaml \
+# > ./output/x_r1_3b_ultra_low_memory.log 2>&1
+
+# Model arguments
+model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Data training arguments
+dataset_name: ./LLM-models-datasets/X-R1-750
+dataset_configs:
+- train
+
+# GRPO trainer config - 极致内存优化
+bf16: true
+use_vllm: false
+do_eval: no
+eval_strategy: "no"
+eval_steps: 20
+gradient_accumulation_steps: 64
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+hub_strategy: every_save
+learning_rate: 2.0e-06
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_prompt_length: 128
+num_generations: 1
+max_completion_length: 128
+max_steps: -1
+num_train_epochs: 2
+output_dir: output/X-R1-3B-LoRA-UltraLowMem
+overwrite_output_dir: true
+per_device_eval_batch_size: 1
+per_device_train_batch_size: 1
+push_to_hub: False
+report_to: []
+save_strategy: "epoch"
+seed: 42
+warmup_ratio: 0.1
+dataloader_num_workers: 0
+
+# lora config - 最小化参数
+lora_r: 8
+lora_target_modules: ["q_proj"]
+lora_alpha: 8
+lora_dropout: 0.1
+use_peft: true 
