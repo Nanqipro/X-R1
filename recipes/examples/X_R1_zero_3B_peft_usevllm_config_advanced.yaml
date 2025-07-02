@@ -18,10 +18,10 @@ torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
 # Data training arguments
-dataset_name: ./LLM-models-datasets/mmlu 
+dataset_name: ./LLM-models-datasets/OpenThoughts-114k
 dataset_configs:
-- test
-dataset_train_split: test
+- train
+dataset_train_split: train
 
 # Reward function arguments - 使用高级连续奖励函数组合
 reward_funcs: ["accuracy_continuous", "format_continuous", "reasoning_steps"]

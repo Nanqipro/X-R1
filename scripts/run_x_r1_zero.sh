@@ -35,7 +35,7 @@ ACCELERATE_LOG_LEVEL=info accelerate launch \
 --config_file recipes/zero3.yaml \
 --num_processes=3 src/x_r1/grpo.py \
 --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced.yaml \
-> ./output/x_r1_3b_lora_advanced_sampling.log 2>&1
+> ./output/x_r1_3b_lora_advanced_sampling_openthoughts.log 2>&1
 
 # 3B LoRA微调配置 (不使用vLLM - 更低内存)
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
