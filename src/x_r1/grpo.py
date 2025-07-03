@@ -221,6 +221,49 @@ def main(script_args, training_args, model_args):
             return result
         
         dataset = dataset.map(extract_conversation_content)
+    elif "Bespoke-Stratos" in script_args.dataset_name or "bespoke-stratos" in script_args.dataset_name.lower():
+        # Bespoke-Stratos-17k数据集处理 - 从conversations字段中提取问题和答案
+        def extract_bespoke_conversation_content(example):
+            """
+            从Bespoke-Stratos数据集的conversations格式中提取用户问题和助手答案
+            
+            Parameters
+            ----------
+            example : dict
+                数据集样本，包含 'conversations' 字段
+                
+            Returns
+            -------
+            dict
+                包含 'problem' 和 'solution' 字段的字典
+            """
+            conversations = example.get("conversations", [])
+            result = {"problem": "", "solution": ""}
+            
+            if conversations:
+                # 查找用户消息作为问题
+                for conv in conversations:
+                    if conv.get("from") in ["user", "human"]:
+                        result["problem"] = conv.get("value", "")
+                        break
+                
+                # 查找助手消息作为答案
+                for conv in conversations:
+                    if conv.get("from") in ["assistant", "gpt"]:
+                        result["solution"] = conv.get("value", "")
+                        break
+                
+                # 如果没有找到用户消息，使用第一个消息作为问题
+                if not result["problem"] and conversations:
+                    result["problem"] = conversations[0].get("value", "")
+                
+                # 如果没有找到助手消息，使用最后一个消息作为答案  
+                if not result["solution"] and len(conversations) > 1:
+                    result["solution"] = conversations[-1].get("value", "")
+            
+            return result
+        
+        dataset = dataset.map(extract_bespoke_conversation_content)
 
     # Get reward functions
     REWARD_FUNCS_REGISTRY = {

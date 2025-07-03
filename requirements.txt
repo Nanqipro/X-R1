@@ -28,3 +28,6 @@ vllm==0.7.2
 wandb>=0.19.1
 peft>=0.14.0
 # flash-attn
+requests>=2.28.0
+tqdm>=4.64.0
+datasets>=2.8.0

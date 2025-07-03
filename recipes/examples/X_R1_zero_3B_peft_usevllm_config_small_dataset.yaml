@@ -1,6 +1,7 @@
 # This is X-R1(https://github.com/dhcode-cpp/X-R1) project training config:
+# 小数据集版本 - 最快训练
 # required >= 3x3090(24G)/4090(24G) 
-# running time 1~2h
+# running time 15~30min (fastest)
 
 # multi-gpu LoRA NOT running zero3
 
@@ -8,8 +9,8 @@
 # accelerate launch 
 # --config_file recipes/zero3.yaml 
 # --num_processes=3 src/x_r1/grpo.py 
-# --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced.yaml
-# > ./output/x_r1_3b_lora_advanced.log 2>&1
+# --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_small_dataset.yaml
+# > ./output/x_r1_3b_lora_small_dataset.log 2>&1
 
 # Model arguments
 model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
@@ -17,8 +18,8 @@ model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
-# Data training arguments
-dataset_name: ./LLM-models-datasets/Bespoke-Stratos-17k
+# Data training arguments - 使用小数据集
+dataset_name: ./LLM-models-datasets/X-R1-750  # 使用750样本的小数据集
 dataset_configs:
 - train
 dataset_train_split: train
@@ -33,7 +34,7 @@ cosine_min_value_wrong: 0.0
 cosine_max_value_wrong: -0.5
 cosine_max_len: 1000
 
-# GRPO trainer config
+# GRPO trainer config - 小数据集优化
 bf16: true
 use_vllm: true
 vllm_gpu_memory_utilization: 0.3
@@ -53,14 +54,12 @@ lr_scheduler_type: cosine
 max_prompt_length: 256
 num_generations: 3
 max_completion_length: 256
-max_steps: -1
-num_train_epochs: 3
-# max_steps: 5000  # 限制最大步数为5000步
-# num_train_epochs: 1  # 减少到1个epoch
-output_dir: output/X-R1-3B-LoRA-Advanced
+max_steps: -1  # 小数据集可以跑完所有步数
+num_train_epochs: 3  # 小数据集可以训练更多轮次
+output_dir: output/X-R1-3B-LoRA-Small-Dataset
 overwrite_output_dir: true
 per_device_eval_batch_size: 1
-per_device_train_batch_size: 1
+per_device_train_batch_size: 2  # 增大批次大小
 push_to_hub: False
 report_to: []
 save_strategy: "epoch"

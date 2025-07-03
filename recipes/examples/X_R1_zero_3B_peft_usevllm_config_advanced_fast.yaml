@@ -1,6 +1,7 @@
 # This is X-R1(https://github.com/dhcode-cpp/X-R1) project training config:
+# 快速训练版本 - 减少训练时间
 # required >= 3x3090(24G)/4090(24G) 
-# running time 1~2h
+# running time 30~60min (much faster)
 
 # multi-gpu LoRA NOT running zero3
 
@@ -8,8 +9,8 @@
 # accelerate launch 
 # --config_file recipes/zero3.yaml 
 # --num_processes=3 src/x_r1/grpo.py 
-# --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced.yaml
-# > ./output/x_r1_3b_lora_advanced.log 2>&1
+# --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced_fast.yaml
+# > ./output/x_r1_3b_lora_advanced_fast.log 2>&1
 
 # Model arguments
 model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
@@ -33,7 +34,7 @@ cosine_min_value_wrong: 0.0
 cosine_max_value_wrong: -0.5
 cosine_max_len: 1000
 
-# GRPO trainer config
+# GRPO trainer config - 快速训练优化
 bf16: true
 use_vllm: true
 vllm_gpu_memory_utilization: 0.3
@@ -53,17 +54,16 @@ lr_scheduler_type: cosine
 max_prompt_length: 256
 num_generations: 3
 max_completion_length: 256
-max_steps: -1
-num_train_epochs: 3
-# max_steps: 5000  # 限制最大步数为5000步
-# num_train_epochs: 1  # 减少到1个epoch
-output_dir: output/X-R1-3B-LoRA-Advanced
+max_steps: 1000  # 限制最大步数为10000步，大约训练1/8的数据
+num_train_epochs: 3  # 减少到1个epoch
+output_dir: output/X-R1-3B-LoRA-Advanced-Fast
 overwrite_output_dir: true
 per_device_eval_batch_size: 1
-per_device_train_batch_size: 1
+per_device_train_batch_size: 1  # 增大批次大小，减少步数
 push_to_hub: False
 report_to: []
-save_strategy: "epoch"
+save_strategy: "steps"  # 改为按步数保存
+save_steps: 20  # 每2000步保存一次
 seed: 42
 warmup_ratio: 0.1
 

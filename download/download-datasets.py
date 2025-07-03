@@ -152,7 +152,7 @@ async def main() -> None:
     # 单个数据集同步下载示例
     logger.info("\n单个数据集下载示例:")
     success = downloader.download_dataset_sync(
-        dataset_name="open-thoughts/OpenThoughts-114k",
+        dataset_name="bespokelabs/Bespoke-Stratos-17k",
         split="train"  # 使用实际存在的分割
     )
     
