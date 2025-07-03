@@ -2,19 +2,28 @@
 
 import re
 import math
-from typing import Dict
+from typing import Dict, Callable
 import os
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# 加载 .env 文件中的环境变量
+load_dotenv()
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
 # Initialize DeepSeek client with environment variable for security
+# 从环境变量获取API密钥，确保安全性
+deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+if not deepseek_api_key:
+    raise ValueError("DEEPSEEK_API_KEY environment variable must be set")
+
 client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY", "sk-60e54dd882314d11b6dd43fe1bf55f11"),  # fallback for backward compatibility
+    api_key=deepseek_api_key,
     base_url="https://api.deepseek.com/v1"
 )
 
-def normalize_text(text):
+def normalize_text(text: str | None) -> str:
     """Normalize text by removing extra whitespace, converting to lowercase."""
     if text is None:
         return ""
@@ -25,7 +34,7 @@ def normalize_text(text):
     text = re.sub(r'\s+', ' ', text.strip().lower())
     return text
 
-def extract_answer(text):
+def extract_answer(text: str | None) -> str:
     """Extract content between <answer> tags."""
     if text is None:
         return ""
@@ -34,7 +43,7 @@ def extract_answer(text):
         return match.group(1).strip()
     return text.strip()
 
-def evaluate_answer_similarity(answer, solution):
+def evaluate_answer_similarity(answer: str, solution: str) -> float:
     """Use DeepSeek API to evaluate answer similarity."""
     try:
         response = client.chat.completions.create(
@@ -62,7 +71,7 @@ def evaluate_answer_similarity(answer, solution):
         # If API call fails, fall back to simple text matching
         return 1.0 if normalize_text(answer) == normalize_text(solution) else 0.0
 
-def accuracy_reward(completions, solution, **kwargs):
+def accuracy_reward(completions: list[list[Dict[str, str]]], solution: list[str], **kwargs) -> list[float]:
     """Reward function that checks if the completion is the same as the ground truth."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
@@ -118,7 +127,7 @@ def accuracy_reward(completions, solution, **kwargs):
     return rewards
 
 
-def accuracy_reward_continuous(completions, solution, **kwargs):
+def accuracy_reward_continuous(completions: list[list[Dict[str, str]]], solution: list[str], **kwargs) -> list[float]:
     """改进的奖励函数，提供连续的奖励值而不是简单的0/1."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
@@ -225,7 +234,7 @@ def accuracy_reward_continuous(completions, solution, **kwargs):
     return rewards
 
 
-def accuracy_answer_reward(completion, answer, **kwargs):
+def accuracy_answer_reward(completion: str, answer: str, **kwargs) -> float:
     """Reward function that checks if the completion is the same as the ground truth."""
     '''
     input is completion string, answer is extracted gold answer.
@@ -262,7 +271,7 @@ def accuracy_answer_reward(completion, answer, **kwargs):
         return 0.0
 
 
-def format_reward(completions, **kwargs):
+def format_reward(completions: list[list[Dict[str, str]]], **kwargs) -> list[float]:
     """Reward function that checks if the completion has a specific format."""
     pattern = r"^<think>.*?</think><answer>.*?</answer>$"
     completion_contents = [completion[0]["content"] for completion in completions]
@@ -274,7 +283,7 @@ def format_reward(completions, **kwargs):
     return rewards
 
 
-def format_reward_continuous(completions, **kwargs):
+def format_reward_continuous(completions: list[list[Dict[str, str]]], **kwargs) -> list[float]:
     """连续版本的格式奖励函数，提供更细粒度的奖励."""
     completion_contents = [completion[0]["content"] for completion in completions]
     rewards = []
@@ -328,13 +337,16 @@ def format_reward_continuous(completions, **kwargs):
     return rewards
 
 
-def reasoning_steps_reward(completions, **kwargs):
+def reasoning_steps_reward(completions: list[list[Dict[str, str]]], **kwargs) -> list[float]:
     """Reward function that checks for clear step-by-step reasoning.
+    
+    检查清晰逐步推理的奖励函数
+    
     Regex pattern:
-        Step \d+: - matches "Step 1:", "Step 2:", etc.
-        ^\d+\. - matches numbered lists like "1.", "2.", etc. at start of line
-        \n- - matches bullet points with hyphens
-        \n\* - matches bullet points with asterisks
+        Step \\d+: - matches "Step 1:", "Step 2:", etc.
+        ^\\d+\\. - matches numbered lists like "1.", "2.", etc. at start of line
+        \\n- - matches bullet points with hyphens
+        \\n\\* - matches bullet points with asterisks
         First,|Second,|Next,|Finally, - matches transition words
     """
     pattern = r"(Step \d+:|^\d+\.|\n-|\n\*|First,|Second,|Next,|Finally,)"
@@ -345,7 +357,7 @@ def reasoning_steps_reward(completions, **kwargs):
     return [min(1.0, count / 3) for count in matches]
 
 
-def len_reward(completions: list[Dict[str, str]], solutions: list[str], **kwargs) -> float:
+def len_reward(completions: list[list[Dict[str, str]]], solutions: list[str], **kwargs) -> list[float]:
     """Compute length-based rewards to discourage overthinking and promote token efficiency.
 
     Taken from from the Kimi 1.5 tech report: https://arxiv.org/abs/2501.12599
@@ -387,7 +399,7 @@ def len_reward(completions: list[Dict[str, str]], solutions: list[str], **kwargs
                         malformed_operators=False,
                         basic_latex=True,
                         equations=True,
-                        boxed=True,
+                        boxed="all",
                         units=True,
                     ),
                     boxed_match_priority=0,
@@ -427,8 +439,8 @@ def get_cosine_scaled_reward(
     min_value_correct: float = 0.5,
     max_value_correct: float = 1.0,
     max_len: int = 1000,
-):
-    def cosine_scaled_reward(completions, solution, **kwargs):
+) -> Callable[[list[list[Dict[str, str]]], list[str]], list[float]]:
+    def cosine_scaled_reward(completions: list[list[Dict[str, str]]], solution: list[str], **kwargs) -> list[float]:
         """Reward function that scales based on completion length using a cosine schedule.
 
         Shorter correct solutions are rewarded more than longer ones.
@@ -464,7 +476,7 @@ def get_cosine_scaled_reward(
                             malformed_operators=False,
                             basic_latex=True,
                             equations=True,
-                            boxed=True,
+                            boxed="all",
                             units=True,
                         ),
                         boxed_match_priority=0,
@@ -497,7 +509,7 @@ def get_cosine_scaled_reward(
     return cosine_scaled_reward
 
 
-def get_repetition_penalty_reward(ngram_size: int, max_penalty: float):
+def get_repetition_penalty_reward(ngram_size: int, max_penalty: float) -> Callable[[list[list[Dict[str, str]]]], list[float]]:
     """
     Computes N-gram repetition penalty as described in Appendix C.2 of https://arxiv.org/abs/2502.03373.
     Reference implementation from: https://github.com/eddycmu/demystify-long-cot/blob/release/openrlhf/openrlhf/reward/repetition.py
@@ -509,11 +521,11 @@ def get_repetition_penalty_reward(ngram_size: int, max_penalty: float):
     if max_penalty > 0:
         raise ValueError(f"max_penalty {max_penalty} should not be positive")
 
-    def zipngram(text: str, ngram_size: int):
+    def zipngram(text: str, ngram_size: int) -> zip:
         words = text.lower().split()
         return zip(*[words[i:] for i in range(ngram_size)])
 
-    def repetition_penalty_reward(completions, **kwargs) -> float:
+    def repetition_penalty_reward(completions: list[list[Dict[str, str]]], **kwargs) -> list[float]:
         """
         reward function the penalizes repetitions
         ref implementation: https://github.com/eddycmu/demystify-long-cot/blob/release/openrlhf/openrlhf/reward/repetition.py
