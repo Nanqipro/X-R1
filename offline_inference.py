@@ -3,7 +3,7 @@ from vllm import LLM, SamplingParams
 import os
 
 class Infer:
-    def __init__(self, model="./LLM-models-datasets/X-R1-3B-Merged"):
+    def __init__(self, model="./LLM-models-datasets/Qwen2.5-3B"):
         if not os.path.exists(model):
             print(f"Error: Model path '{model}' does not exist.")
             exit(1)
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     data_file_name = "./A-data/A-data.jsonl"
     
     # 使用合并后的模型路径
-    merged_model_path = "./LLM-models-datasets/X-R1-3B-Merged"
+    merged_model_path = "./LLM-models-datasets/Qwen2.5-3B"
     
     # 检查合并后的模型是否存在，如果不存在则提示用户先合并
     if not os.path.exists(merged_model_path):
@@ -116,13 +116,13 @@ if __name__ == "__main__":
         print("请先运行以下命令合并LoRA模型:")
         print("python merge_lora_model.py")
         print("或者手动指定路径:")
-        print("python merge_lora_model.py --base ./LLM-models-datasets/Qwen2.5-3B --lora ./LLM-models-datasets/X-R1-3B-LoRA-Advanced --output ./LLM-models-datasets/X-R1-3B-Merged")
+        print("python merge_lora_model.py --base ./LLM-models-datasets/Qwen2.5-3B --lora ./LLM-models-datasets/X-R1-3B-LoRA-Advanced-Fast --output ./LLM-models-datasets/Qwen2.5-3B")
         exit(1)
     
     infer = Infer(model=merged_model_path)
     res = infer.infer(data_file=data_file_name)
     
-    output_file_name = "./A-data/res-x-r1-3b-merged.json"
+    output_file_name = "./A-data/res-qwen2.5-3b.json"
     with open(output_file_name, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=2)
 

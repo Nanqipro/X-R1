@@ -107,15 +107,15 @@ def main():
     parser.add_argument(
         "--lora", 
         type=str, 
-        default="./LLM-models-datasets/X-R1-3B-LoRA-Advanced",
-        help="LoRA适配器模型路径 (默认: ./LLM-models-datasets/X-R1-3B-LoRA-Advanced)"
+        default="./LLM-models-datasets/X-R1-3B-LoRA-Advanced-Fast/checkpoint-60",
+        help="LoRA适配器模型路径 (默认: ./LLM-models-datasets/X-R1-3B-LoRA-Advanced-Fast/checkpoint-60)"
     )
     
     parser.add_argument(
         "--output", 
         type=str, 
-        default="./LLM-models-datasets/X-R1-3B-Merged",
-        help="合并后模型输出路径 (默认: ./LLM-models-datasets/X-R1-3B-Merged)"
+        default="./LLM-models-datasets/X-R1-3B-Merged-Fast",
+        help="合并后模型输出路径 (默认: ./LLM-models-datasets/X-R1-3B-Merged-Fast)"
     )
     
     parser.add_argument(

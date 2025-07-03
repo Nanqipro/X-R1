@@ -38,7 +38,7 @@ def evaluate_answer_similarity(answer, solution):
     """Use DeepSeek API to evaluate answer similarity."""
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-reasoner",
             messages=[
                 {
                     "role": "system",

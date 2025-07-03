@@ -203,23 +203,29 @@ class DeepSeekAPIClient:
             messages.append({"role": "user", "content": prompt})
             
             data = {
-                "model": "deepseek-chat",
+                "model": "deepseek-reasoner",
                 "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "stream": False
             }
             
+            # 针对deepseek-reasoner模型增加超时时间
             response = requests.post(
                 self.api_url,
                 headers=self.headers,
                 json=data,
-                timeout=60
+                timeout=120  # 从60秒增加到120秒
             )
             
             if response.status_code == 200:
                 result = response.json()
-                return result["choices"][0]["message"]["content"]
+                content = result["choices"][0]["message"]["content"]
+                if content and content.strip():  # 确保内容不为空
+                    return content
+                else:
+                    logger.warning("API返回内容为空")
+                    return None
             else:
                 logger.error(f"API请求失败: {response.status_code} - {response.text}")
                 return None
@@ -576,12 +582,12 @@ def main():
     parser = argparse.ArgumentParser(description="生成X-R1训练数据集")
     parser.add_argument("--input", "-i", default="A-data/A-data.jsonl", 
                        help="输入数据文件路径")
-    parser.add_argument("--output", "-o", default="./LLM-models-datasets/generated_x_r1_dataset02/generated_x_r1_dataset.jsonl",
+    parser.add_argument("--output", "-o", default="./LLM-models-datasets/generated_x_r1_dataset03/generated_x_r1_dataset.jsonl",
                        help="输出数据文件路径")
     parser.add_argument("--batch-size", "-b", type=int, default=10,
                        help="批处理大小")
-    parser.add_argument("--delay", "-d", type=float, default=1.0,
-                       help="请求间延迟时间（秒）")
+    parser.add_argument("--delay", "-d", type=float, default=3.0,  # 从1.0增加到3.0秒
+                       help="请求间延迟时间（秒）- 针对deepseek-reasoner模型优化")
     parser.add_argument("--api-key", "-k", default=DEEPSEEK_API_KEY,
                        help="DeepSeek API密钥")
     
@@ -600,6 +606,7 @@ def main():
     
     # 生成数据集
     logger.info("开始数据集生成任务...")
+    logger.info(f"使用deepseek-reasoner模型，延迟时间: {args.delay}秒")
     start_time = datetime.now()
     
     success = generator.generate_dataset(
