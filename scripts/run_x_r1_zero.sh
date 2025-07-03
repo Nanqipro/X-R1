@@ -35,7 +35,7 @@ ACCELERATE_LOG_LEVEL=info accelerate launch \
 --config_file recipes/zero3.yaml \
 --num_processes=3 src/x_r1/grpo.py \
 --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced.yaml \
-> ./output/x_r1_3b_lora_advanced_sampling_bespokelabs.log 2>&1
+> ./output/x_r1_3b_lora_advanced_sampling_generated_x_r1_dataset02.log 2>&1
 
 # 3B LoRA微调配置-改进奖励函数 (使用vLLM - 快速版)
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

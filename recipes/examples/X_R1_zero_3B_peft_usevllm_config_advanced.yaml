@@ -18,7 +18,7 @@ torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
 # Data training arguments
-dataset_name: ./LLM-models-datasets/Bespoke-Stratos-17k
+dataset_name: ./LLM-models-datasets/generated_x_r1_dataset02
 dataset_configs:
 - train
 dataset_train_split: train
@@ -57,13 +57,15 @@ max_steps: -1
 num_train_epochs: 3
 # max_steps: 5000  # 限制最大步数为5000步
 # num_train_epochs: 1  # 减少到1个epoch
-output_dir: output/X-R1-3B-LoRA-Advanced
+output_dir: output/X-R1-3B-generated_x_r1_dataset02
 overwrite_output_dir: true
 per_device_eval_batch_size: 1
 per_device_train_batch_size: 1
 push_to_hub: False
 report_to: []
-save_strategy: "epoch"
+# save_strategy: "epoch"
+save_strategy: "steps"  # 改为按步数保存
+save_steps: 20  # 每2000步保存一次
 seed: 42
 warmup_ratio: 0.1
 
