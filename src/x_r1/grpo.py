@@ -45,6 +45,16 @@ from peft import LoraConfig, PeftModel, get_peft_model
 
 logger = logging.getLogger(__name__)
 
+
+# 强制禁用不兼容的Attention后端，以确保在Volta/Turing GPU上稳定运行
+try:
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    logger.info("Disabled Flash SDP and Memory-Efficient SDP for GPU compatibility.")
+except Exception:
+    logger.warning("Could not disable Flash SDP or Memory-Efficient SDP. Proceeding with default settings.")
+
+
 import wandb
 
 

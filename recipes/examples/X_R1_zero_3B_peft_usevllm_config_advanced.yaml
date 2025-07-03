@@ -14,8 +14,9 @@
 # Model arguments
 model_name_or_path: ./LLM-models-datasets/Qwen2.5-3B
 model_revision: main
-torch_dtype: bfloat16
-attn_implementation: flash_attention_2
+torch_dtype: float16
+trust_remote_code: false
+attn_implementation: sdpa
 
 # Data training arguments
 dataset_name: ./LLM-models-datasets/Bespoke-Stratos-17k
@@ -34,8 +35,10 @@ cosine_max_value_wrong: -0.5
 cosine_max_len: 1000
 
 # GRPO trainer config
-bf16: true
+fp16: true
 use_vllm: true
+vllm_device: cuda:3
+vllm_dtype: half
 vllm_gpu_memory_utilization: 0.3
 do_eval: no
 eval_strategy: "no"

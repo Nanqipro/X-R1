@@ -27,17 +27,12 @@ ACCELERATE_LOG_LEVEL=info accelerate launch \
 
 # 3B LoRA微调配置 (使用vLLM - 优化版)
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export VLLM_DEVICE_ID=3
 ACCELERATE_LOG_LEVEL=info accelerate launch \
 --config_file recipes/zero3.yaml \
---num_processes=3 src/x_r1/grpo.py \
---config recipes/examples/X_R1_zero_3B_peft_usevllm_config.yaml \
-> ./output/x_r1_3b_lora_sampling.log 2>&1
-
-# 3B LoRA微调配置-改进奖励函数 (使用vLLM - 优化版)
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-ACCELERATE_LOG_LEVEL=info accelerate launch \
---config_file recipes/zero3.yaml \
---num_processes=3 src/x_r1/grpo.py \
+--num_processes=3 \
+--gpu_ids "0,1,2" \
+src/x_r1/grpo.py \
 --config recipes/examples/X_R1_zero_3B_peft_usevllm_config_advanced.yaml \
 > ./output/x_r1_3b_lora_advanced_sampling_bespokelabs.log 2>&1
 

@@ -12,13 +12,13 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # Get the directory of the current script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$SCRIPT_DIR" 
 
 # Path to the training script
 TRAINING_SCRIPT="$PROJECT_ROOT/src/x_r1/grpo.py"
 
 # DeepSpeed configuration file
-DEEPSPEED_CONFIG="$PROJECT_ROOT/recipes/deepspeed_zero3.json"
+DEEPSPEED_CONFIG="$PROJECT_ROOT/recipes/zero3.yaml"
 
 # Set number of processes for training
 NUM_PROCESSES=3
@@ -29,13 +29,10 @@ MAIN_PROCESS_PORT=$(( RANDOM % 20000 + 20000 ))
 echo "Starting training on GPUs 0,1,2 and vLLM on GPU 3..."
 echo "Using port $MAIN_PROCESS_PORT for main process..."
 
-# Ensure the output directory exists
-mkdir -p "$PROJECT_ROOT/output"
-
 # Launch training with accelerate
 # --vllm_device "cuda:3" is added to explicitly tell the script to use GPU 3 for vLLM.
 # The training processes launched by accelerate will use the first N GPUs available based on its logic (0, 1, 2).
-accelerate launch --num_processes $NUM_PROCESSES --main_process_port $MAIN_PROCESS_PORT "$TRAINING_SCRIPT" \
+accelerate launch --config_file "$PROJECT_ROOT/recipes/zero3.yaml" --num_processes $NUM_PROCESSES --main_process_port $MAIN_PROCESS_PORT "$TRAINING_SCRIPT" \
     --deepspeed "$DEEPSPEED_CONFIG" \
     --model_name_or_path "../LLM-models-datasets/Qwen2.5-3B" \
     --use_peft True \
@@ -62,6 +59,7 @@ accelerate launch --num_processes $NUM_PROCESSES --main_process_port $MAIN_PROCE
     --beta 0.04 \
     --loss_type "bnpo" \
     --gradient_checkpointing True \
+    --fp16 True \
     --use_vllm True \
     --vllm_gpu_memory_utilization 0.3 \
     --vllm_device "cuda:3" \
@@ -73,4 +71,4 @@ accelerate launch --num_processes $NUM_PROCESSES --main_process_port $MAIN_PROCE
     --cosine_max_value_correct 1.0 \
     --cosine_max_len 1000 \
     --repetition_n_grams 3 \
-    --repetition_max_penalty -1.0 > "$PROJECT_ROOT/output/x_r1_3b_lora_advanced_sampling_bespokelabs.log" 2>&1 
+    --repetition_max_penalty -1.0 

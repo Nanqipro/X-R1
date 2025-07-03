@@ -53,7 +53,7 @@ from trl.trainer.grpo_config import GRPOConfig
 from trl.trainer.utils import  pad, selective_log_softmax
 
 if is_peft_available():
-    from peft import PeftConfig, get_peft_model
+    from peft import PeftConfig, get_peft_model, PeftModel, PeftMixedModel
 
 if is_vllm_available():
     from vllm import LLM, SamplingParams
@@ -62,11 +62,63 @@ if is_wandb_available():
     import wandb
 
 
+# 添加rich库支持和缺失的辅助函数
+def is_rich_available() -> bool:
+    """检查rich库是否可用"""
+    try:
+        import rich
+        return True
+    except ImportError:
+        return False
+
+
+def print_prompt_completions_sample(prompts, completions, rewards, step):
+    """打印提示词、完成文本和奖励的样本（如果rich可用）"""
+    if is_rich_available():
+        try:
+            from rich.console import Console
+            from rich.table import Table
+            
+            console = Console()
+            table = Table(title=f"Completions Sample (Step {step})")
+            table.add_column("Prompt", style="cyan", no_wrap=False, max_width=40)
+            table.add_column("Completion", style="green", no_wrap=False, max_width=40)
+            table.add_column("Reward", style="magenta", justify="center")
+            
+            # 只显示前几个样本
+            for i in range(min(3, len(prompts))):
+                table.add_row(
+                    prompts[i][:100] + "..." if len(prompts[i]) > 100 else prompts[i],
+                    completions[i][:100] + "..." if len(completions[i]) > 100 else completions[i],
+                    f"{rewards[i]:.3f}"
+                )
+            
+            console.print(table)
+        except Exception as e:
+            print(f"Warning: 无法显示rich表格: {e}")
+            # 降级到简单打印
+            _print_simple_completions_sample(prompts, completions, rewards, step)
+    else:
+        # 如果rich不可用，使用简单打印
+        _print_simple_completions_sample(prompts, completions, rewards, step)
+
+
+def _print_simple_completions_sample(prompts, completions, rewards, step):
+    """简单打印样本（rich库不可用时的降级方案）"""
+    print(f"\n=== Completions Sample (Step {step}) ===")
+    for i in range(min(3, len(prompts))):
+        print(f"Sample {i+1}:")
+        print(f"  Prompt: {prompts[i][:100]}...")
+        print(f"  Completion: {completions[i][:100]}...")
+        print(f"  Reward: {rewards[i]:.3f}")
+        print("-" * 50)
 
 
 # What we call a reward function is a callable that takes a list of prompts and completions and returns a list of
 # rewards. When it's a string, it's a model ID, so it's loaded as a pretrained model.
 RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
+
+# PEFT类型现在直接在类型注解中使用字符串引用
 
 
 class RepeatRandomSampler(Sampler):
@@ -165,7 +217,7 @@ class XGRPOTrainer(GRPOTrainer):
 
     def __init__(
         self,
-        model: Union[str, PreTrainedModel],
+        model: Union[str, PreTrainedModel, "PeftModel", "PeftMixedModel"],
         reward_funcs: Union[RewardFunc, list[RewardFunc]],
         args: Optional[GRPOConfig] = None,
         train_dataset: Optional[Union[Dataset, IterableDataset]] = None,
@@ -178,7 +230,7 @@ class XGRPOTrainer(GRPOTrainer):
     ):
         # Args
         if args is None:
-            model_name = model if isinstance(model, str) else model.config._name_or_path
+            model_name = model if isinstance(model, str) else getattr(model.config, '_name_or_path', 'unknown-model')
             model_name = model_name.split("/")[-1]
             args = GRPOConfig(f"{model_name}-GRPO")
 
@@ -204,7 +256,7 @@ class XGRPOTrainer(GRPOTrainer):
             )
             model = AutoModelForCausalLM.from_pretrained(model, **model_init_kwargs)
         else:
-            model_id = model.config._name_or_path
+            model_id = getattr(model.config, '_name_or_path', 'unknown-model')
             if args.model_init_kwargs is not None:
                 raise ValueError(
                     "You passed `model_init_kwargs` to the `GRPOConfig`, but your model is already instantiated. "
@@ -237,7 +289,7 @@ class XGRPOTrainer(GRPOTrainer):
 
         # Processing class
         if processing_class is None:
-            processing_class = AutoTokenizer.from_pretrained(model.config._name_or_path, padding_side="left")
+            processing_class = AutoTokenizer.from_pretrained(getattr(model.config, '_name_or_path', model_id), padding_side="left")
 
         # Reward functions
         if not isinstance(reward_funcs, list):
@@ -299,7 +351,7 @@ class XGRPOTrainer(GRPOTrainer):
         self._step = 0
         # Buffer the batch to reuse generated outputs across multiple updates. For more details, see
         # `_get_train_sampler` and `_prepare_inputs`.
-        self._buffered_inputs = [None] * args.gradient_accumulation_steps
+        self._buffered_inputs: list[dict[str, Union[torch.Tensor, Any]] | None] = [None] * args.gradient_accumulation_steps
 
         # The trainer estimates the number of FLOPs (floating-point operations) using the number of elements in the
         # input tensor associated with the key "input_ids". However, in GRPO, the sampled data does not include the
@@ -361,53 +413,50 @@ class XGRPOTrainer(GRPOTrainer):
                 )
 
             if self.accelerator.is_main_process:
-                # 新版本TRL移除了vllm_device参数，我们使用自动设备选择逻辑
-                if torch.cuda.device_count() == 1:
-                    vllm_device = "cuda:0"  # 单GPU情况：共享使用
+                vllm_physical_device_id = os.environ.get("VLLM_DEVICE_ID")
+                if vllm_physical_device_id:
+                    print(f"vLLM将在物理GPU {vllm_physical_device_id}上独立运行。")
+                    vllm_logical_device = "cuda:0"  # 在隔离环境下，vLLM看到的设备是cuda:0
+                    vllm_gpu_memory_utilization = 0.9
                 else:
-                    vllm_device = f"cuda:{self.accelerator.num_processes}"  # 使用下一个GPU索引
-                
-                # 检查请求的设备是否可用
-                if vllm_device.split(":")[0] == "cuda" and int(vllm_device.split(":")[1]) >= torch.cuda.device_count():
-                    # 如果设备不可用，回退到cuda:0
-                    vllm_device = "cuda:0"
+                    vllm_physical_device_id = "0"
+                    vllm_logical_device = "cuda:0"
+                    vllm_gpu_memory_utilization = 0.3
                     warnings.warn(
-                        f"请求的vLLM设备不可用，回退到 {vllm_device}。建议使用 `--num_processes` 参数限制训练GPU数量。"
+                        f"VLLM_DEVICE_ID 环境变量未设置, vLLM将与训练共享物理GPU {vllm_physical_device_id}。"
+                        "为获得最佳性能，建议在启动脚本中设置export VLLM_DEVICE_ID。"
                     )
-                
-                # 检查设备是否与训练设备冲突
-                if vllm_device in {f"cuda:{idx}" for idx in range(self.accelerator.num_processes)}:
-                    warnings.warn(
-                        f"设备 {vllm_device} 同时用于训练。为提高吞吐量并避免内存不足，建议使用专用设备。"
-                        "如果这是故意的，请相应调整 `vllm_gpu_memory_utilization`。"
-                    )
-                # vLLM is not compatible with accelerate. So we need to patch it to make sure we can (1) place the vLLM
-                # model on the desired device (world_size_patch) and (2) avoid a test that is not designed for our
-                # setting (profiling_patch).
+
+                # 备份并设置CUDA_VISIBLE_DEVICES以隔离GPU
+                original_cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+                os.environ["CUDA_VISIBLE_DEVICES"] = vllm_physical_device_id
+
+                # vLLM与accelerate/deepspeed不兼容，需要打补丁
                 world_size_patch = patch("torch.distributed.get_world_size", return_value=1)
                 profiling_patch = patch(
                     "vllm.worker.worker.Worker._assert_memory_footprint_increased_during_profiling", return_value=None
                 )
-                with world_size_patch, profiling_patch:
-                    # 构建LLM参数，使用支持的参数并为移除的参数设置默认值
-                    llm_kwargs = {
-                        "model": model.name_or_path,
-                        "device": vllm_device,
-                        "gpu_memory_utilization": self.args.vllm_gpu_memory_utilization,
-                        # 新版本TRL移除了vllm_dtype，使用模型默认类型
-                        "dtype": "auto",  # 让vLLM自动选择合适的数据类型
-                        # Automatic Prefix Caching caches the KV cache of existing queries, so that a new query can
-                        # directly reuse the KV cache if it shares the same prefix with one of the existing queries.
-                        # This is particularly useful here because we generate completions from the same prompts.
-                        "enable_prefix_caching": True,
-                        # 新版本TRL移除了vllm_max_model_len，使用None让vLLM自动推断
-                    }
-                    
-                    # 只有在支持的情况下才添加tensor_parallel_size参数
-                    if hasattr(self.args, 'vllm_tensor_parallel_size'):
-                        llm_kwargs["tensor_parallel_size"] = self.args.vllm_tensor_parallel_size
-                    
-                    self.llm = LLM(**llm_kwargs)
+
+                try:
+                    with world_size_patch, profiling_patch:
+                        llm_kwargs = {
+                            "model": getattr(model, 'name_or_path', model_id),
+                            "tensor_parallel_size": 1,
+                            "gpu_memory_utilization": vllm_gpu_memory_utilization,
+                            "dtype": getattr(self.args, 'vllm_dtype', 'half'),
+                            "enable_prefix_caching": True,
+                            "trust_remote_code": True,
+                            # 在隔离环境下，必须将设备指向vLLM可见的逻辑设备
+                            "device": vllm_logical_device,
+                        }
+                        self.llm = LLM(**llm_kwargs)
+                finally:
+                    # 恢复原始环境变量
+                    if original_cuda_visible_devices is None:
+                        os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+                    else:
+                        os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_visible_devices
+
                 self.sampling_params = SamplingParams(
                     temperature=args.temperature,
                     max_tokens=self.max_completion_length,
@@ -415,11 +464,6 @@ class XGRPOTrainer(GRPOTrainer):
                 )
 
             self._last_loaded_step = 0  # tag to avoid useless loading during grad accumulation
-
-            # When using vLLM, the main process is responsible for loading the model weights. This can cause process
-            # desynchronization and seems to lead to DeepSpeed hanging during initialization. To prevent this, we
-            # synchronize all processes after vLLM has been fully initialized.
-            self.accelerator.wait_for_everyone()
         else:
             self.generation_config = GenerationConfig(
                 max_new_tokens=self.max_completion_length,
@@ -504,7 +548,9 @@ class XGRPOTrainer(GRPOTrainer):
                 inputs = self._generate_and_score_completions(inputs)
                 self._buffered_inputs[self._step % self.args.gradient_accumulation_steps] = inputs
             else:
-                inputs = self._buffered_inputs[self._step % self.args.gradient_accumulation_steps]
+                buffered = self._buffered_inputs[self._step % self.args.gradient_accumulation_steps]
+                assert buffered is not None, "Buffered inputs should not be None"
+                inputs = buffered
             self._step += 1
         else:
             # In evaluation, we don't reuse completions across multiple updates, so we don't need to buffer inputs.
