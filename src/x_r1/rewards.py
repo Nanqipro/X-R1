@@ -12,15 +12,15 @@ load_dotenv()
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
-# Initialize DeepSeek client with environment variable for security
-# 从环境变量获取API密钥，确保安全性
-deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-if not deepseek_api_key:
-    raise ValueError("DEEPSEEK_API_KEY environment variable must be set")
+# Initialize SiliconFlow client with environment variable for security
+# 从环境变量获取API密钥，确保安全性（使用硅基流动API）
+siliconflow_api_key = os.getenv("SILICONFLOW_API_KEY")
+if not siliconflow_api_key:
+    raise ValueError("SILICONFLOW_API_KEY environment variable must be set")
 
 client = OpenAI(
-    api_key=deepseek_api_key,
-    base_url="https://api.deepseek.com/v1"
+    api_key=siliconflow_api_key,
+    base_url="https://api.siliconflow.cn/v1"
 )
 
 def normalize_text(text: str | None) -> str:
@@ -44,10 +44,10 @@ def extract_answer(text: str | None) -> str:
     return text.strip()
 
 def evaluate_answer_similarity(answer: str, solution: str) -> float:
-    """Use DeepSeek API to evaluate answer similarity."""
+    """Use SiliconFlow API to evaluate answer similarity."""
     try:
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-ai/DeepSeek-R1",  # 硅基流动支持的模型
             messages=[
                 {
                     "role": "system",
@@ -67,7 +67,7 @@ def evaluate_answer_similarity(answer: str, solution: str) -> float:
         else:
             raise Exception("Empty response from API")
     except Exception as e:
-        print(f"Error in DeepSeek evaluation: {e}")
+        print(f"Error in SiliconFlow API evaluation: {e}")
         # If API call fails, fall back to simple text matching
         return 1.0 if normalize_text(answer) == normalize_text(solution) else 0.0
 
