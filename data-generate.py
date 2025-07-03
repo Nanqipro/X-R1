@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-数据集生成脚本 - 调用硅基流动API生成X-R1训练数据集
+数据集生成脚本 - 调用DeepSeek API生成X-R1训练数据集
 
 功能描述
 -------
-此脚本从A-data.jsonl读取题目，调用硅基流动(SiliconFlow)API生成答案，
+此脚本从A-data.jsonl读取题目，调用DeepSeek API生成答案，
 并转换为X-R1框架可用的Bespoke-Stratos格式数据集。
 
 使用要求
 -------
 - Python >= 3.8
 - 需要安装: requests, tqdm, datasets
-- 需要有效的硅基流动 API密钥
+- 需要有效的DeepSeek API密钥
 
 数据格式
 -------
@@ -51,12 +51,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# API配置 - 从环境变量获取密钥，确保安全性（使用硅基流动API）
-SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY")
-if not SILICONFLOW_API_KEY:
-    raise ValueError("SILICONFLOW_API_KEY environment variable must be set")
+# API配置 - 从环境变量获取密钥，确保安全性
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    raise ValueError("DEEPSEEK_API_KEY environment variable must be set")
 
-SILICONFLOW_API_URL = "https://api.siliconflow.cn/v1/chat/completions"
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # 系统提示词配置
 SYSTEM_PROMPTS = {
@@ -157,23 +157,23 @@ SYSTEM_PROMPTS = {
 </answer>"""
 }
 
-class SiliconFlowAPIClient:
+class DeepSeekAPIClient:
     """
-    硅基流动 API客户端
+    DeepSeek API客户端
     
-    用于调用硅基流动(SiliconFlow) API生成回答
+    用于调用DeepSeek API生成回答
     
     Attributes
     ----------
     api_key : str
-        硅基流动 API密钥
+        DeepSeek API密钥
     api_url : str
         API端点URL
     headers : Dict[str, str]
         HTTP请求头
     """
     
-    def __init__(self, api_key: str, api_url: str = SILICONFLOW_API_URL) -> None:
+    def __init__(self, api_key: str, api_url: str = DEEPSEEK_API_URL) -> None:
         """
         初始化API客户端
         
@@ -219,19 +219,19 @@ class SiliconFlowAPIClient:
             messages.append({"role": "user", "content": prompt})
             
             data = {
-                "model": "deepseek-ai/DeepSeek-R1",  # 硅基流动支持的模型名称
+                "model": "deepseek-reasoner",
                 "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "stream": False
             }
             
-            # 设置合理的超时时间
+            # 针对deepseek-reasoner模型增加超时时间
             response = requests.post(
                 self.api_url,
                 headers=self.headers,
                 json=data,
-                timeout=120  # 120秒超时
+                timeout=120  # 从60秒增加到120秒
             )
             
             if response.status_code == 200:
@@ -257,8 +257,6 @@ class SiliconFlowAPIClient:
         """
         验证并修正API响应格式，确保包含思考过程和答案
         
-        现在改为：如果格式符合要求就返回原格式，否则直接返回原始响应
-        
         Parameters
         ----------
         response : str
@@ -267,7 +265,7 @@ class SiliconFlowAPIClient:
         Returns
         -------
         Optional[str]
-            格式化后的响应或原始响应，只有在响应为空时才返回None
+            格式化后的响应，失败时返回None
         """
         if not response:
             return None
@@ -275,12 +273,34 @@ class SiliconFlowAPIClient:
         # 检查是否已经包含正确格式
         pattern = r'<think>(.*?)</think>\s*<answer>(.*?)</answer>'
         if re.search(pattern, response, re.DOTALL):
-            logger.info("响应格式符合要求，直接使用")
             return response
         
-        # 格式不符合要求，但直接使用原始响应而不进行格式化
-        logger.info("响应格式不符合要求，但保留原始响应")
-        return response
+        logger.info("响应格式不符合要求，尝试重新格式化...")
+        
+        # 尝试修正格式 - 将整个响应包装在think和answer标签中
+        # 寻找可能的思考过程和答案分界点
+        lines = response.strip().split('\n')
+        
+        # 简单策略：前70%作为思考过程，后30%作为答案
+        split_point = max(1, int(len(lines) * 0.7))
+        
+        think_content = '\n'.join(lines[:split_point]).strip()
+        answer_content = '\n'.join(lines[split_point:]).strip()
+        
+        # 如果答案部分为空，将所有内容作为答案
+        if not answer_content:
+            think_content = "基于题目要求进行分析和思考。"
+            answer_content = response.strip()
+        
+        formatted_response = f"""<think>
+{think_content}
+</think>
+
+<answer>
+{answer_content}
+</answer>"""
+        
+        return formatted_response
 
 class DatasetGenerator:
     """
@@ -290,7 +310,7 @@ class DatasetGenerator:
     
     Attributes
     ----------
-    api_client : SiliconFlowAPIClient
+    api_client : DeepSeekAPIClient
         API客户端实例
     success_count : int
         成功生成的数据项数量
@@ -298,13 +318,13 @@ class DatasetGenerator:
         失败的数据项数量
     """
     
-    def __init__(self, api_client: SiliconFlowAPIClient) -> None:
+    def __init__(self, api_client: DeepSeekAPIClient) -> None:
         """
         初始化数据集生成器
         
         Parameters
         ----------
-        api_client : SiliconFlowAPIClient
+        api_client : DeepSeekAPIClient
             API客户端实例
         """
         self.api_client = api_client
@@ -594,9 +614,9 @@ def main() -> None:
     parser.add_argument("--batch-size", "-b", type=int, default=10,
                        help="批处理大小")
     parser.add_argument("--delay", "-d", type=float, default=3.0,  # 从1.0增加到3.0秒
-                       help="请求间延迟时间（秒）- 避免API频率限制")
-    parser.add_argument("--api-key", "-k", default=SILICONFLOW_API_KEY,
-                       help="硅基流动 API密钥")
+                       help="请求间延迟时间（秒）- 针对deepseek-reasoner模型优化")
+    parser.add_argument("--api-key", "-k", default=DEEPSEEK_API_KEY,
+                       help="DeepSeek API密钥")
     
     args = parser.parse_args()
     
@@ -606,14 +626,14 @@ def main() -> None:
         return
     
     # 初始化API客户端
-    api_client = SiliconFlowAPIClient(args.api_key)
+    api_client = DeepSeekAPIClient(args.api_key)
     
     # 初始化数据集生成器
     generator = DatasetGenerator(api_client)
     
     # 生成数据集
     logger.info("开始数据集生成任务...")
-    logger.info(f"使用硅基流动API，延迟时间: {args.delay}秒")
+    logger.info(f"使用deepseek-reasoner模型，延迟时间: {args.delay}秒")
     start_time = datetime.now()
     
     success = generator.generate_dataset(
