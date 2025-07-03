@@ -1,3 +1,7 @@
+# 刷新终端，应用新版本cuda
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
 ACCELERATE_LOG_LEVEL=info accelerate launch \
 --config_file recipes/zero3.yaml \
 --num_processes=3 src/x_r1/grpo.py \
@@ -59,3 +63,5 @@ ACCELERATE_LOG_LEVEL=info accelerate launch \
 --num_processes=3 src/x_r1/grpo.py \ 
 --config recipes/examples/X_R1_zero_7B_peft_usevllm_config.yaml \
 > ./output/test_7b_lora_sampling.log 2>&1
+
+
