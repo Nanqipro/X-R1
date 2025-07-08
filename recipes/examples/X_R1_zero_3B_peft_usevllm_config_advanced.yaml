@@ -36,11 +36,11 @@ cosine_max_len: 1000
 # GRPO trainer config
 bf16: true
 use_vllm: true
-vllm_gpu_memory_utilization: 0.25  # 降低VLLM内存使用
+vllm_gpu_memory_utilization: 0.3
 do_eval: no
 eval_strategy: "no"
 eval_steps: 10
-gradient_accumulation_steps: 6  # 增加梯度累积以减少每步内存需求
+gradient_accumulation_steps: 4
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
@@ -50,9 +50,9 @@ log_level: info
 logging_steps: 5
 logging_strategy: steps
 lr_scheduler_type: cosine
-max_prompt_length: 200  # 降低最大提示长度
-num_generations: 2      # 减少生成数量以降低内存使用
-max_completion_length: 200  # 降低最大完成长度
+max_prompt_length: 256
+num_generations: 3
+max_completion_length: 256
 max_steps: -1
 num_train_epochs: 3
 # max_steps: 5000  # 限制最大步数为5000步
@@ -65,7 +65,7 @@ push_to_hub: False
 report_to: []
 # save_strategy: "epoch"
 save_strategy: "steps"  # 改为按步数保存
-save_steps: 10  # 更频繁保存以防数据丢失
+save_steps: 20  # 每2000步保存一次
 seed: 42
 warmup_ratio: 0.1
 
